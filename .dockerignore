@@ -1,0 +1,57 @@
+# Version control and repository metadata
+.git
+.github
+.gitignore
+.gitattributes
+.local-backups
+
+# Editors and operating systems
+.idea
+.vscode
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python caches, environments, and packaging
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+env
+ENV
+*.egg-info
+dist
+build
+
+# Secrets: inject these at runtime
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local application data
+generated_ppts
+uploads
+logs
+*.xlsx
+*.log
+
+# Frontend dependencies and build output
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/coverage
+
+# Development-only files
+docs
+test_pipeline.py
+run-dev.ps1
+start-api.ps1
+CONTRIBUTING.md
+SECURITY.md

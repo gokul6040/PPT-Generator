@@ -1,0 +1,13 @@
+python-pptx
+python-docx
+pypdf
+python-dotenv
+openai
+openpyxl
+lxml
+azure-storage-blob
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
+supervisor

@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: gokulturnb/autonomous-ppt-agent:latest
+    container_name: turnb-ppt-agent
+    ports:
+      - "8501:8501"
+    environment:
+      PORT: 8501
+    env_file:
+      - .env
+    restart: unless-stopped
