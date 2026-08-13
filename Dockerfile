@@ -13,7 +13,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 # Stage 2: API + UI + gateway (single container)
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
