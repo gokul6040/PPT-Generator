@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { TeamsInitializer } from "@/components/TeamsInitializer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,7 +21,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="h-dvh overflow-hidden">{children}</body>
+      <body className="h-dvh overflow-hidden">
+        <TeamsInitializer />
+        {children}
+      </body>
     </html>
   );
 }

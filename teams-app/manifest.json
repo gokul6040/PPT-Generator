@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.23/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.23",
+  "version": "1.0.0",
+  "id": "b8e9eac6-590f-4e76-ad52-eaf2559a474f",
+  "developer": {
+    "name": "TurnB",
+    "websiteUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/",
+    "privacyUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/privacy",
+    "termsOfUseUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/terms"
+  },
+  "name": {
+    "short": "TurnB PPT Agent",
+    "full": "TurnB Case Study PowerPoint Agent"
+  },
+  "description": {
+    "short": "Create TurnB case-study presentations from rough project content.",
+    "full": "Turn rough project content into structured TurnB case-study presentations through the existing AI-assisted presentation workflow. This pilot is delivered as a Microsoft Teams personal tab."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#1A2030",
+  "staticTabs": [
+    {
+      "entityId": "turnb-ppt-agent",
+      "name": "PPT Agent",
+      "contentUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/",
+      "websiteUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "validDomains": [
+    "turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io"
+  ],
+  "defaultInstallScope": "personal"
+}
