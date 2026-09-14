@@ -27,7 +27,7 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
   };
 
   return (
-    <div className="mt-3 space-y-4 border-t border-[#2f3848] pt-3 text-sm">
+    <div className="mt-3 space-y-4 border-t border-[#383543] pt-3 text-sm">
       <p className="font-medium text-slate-200">
         I&apos;ve reviewed your content. Here is what I found:
       </p>
@@ -63,8 +63,8 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
         />
       )}
       {review.impact_note && (
-        <div className="border-l-2 border-[#4a6fa5] bg-[#1a2030] px-3 py-2 text-slate-300">
-          <strong className="text-[#7ba4e8]">Impact note:</strong>{" "}
+        <div className="border-l-2 border-[#7656f5] bg-[#1b1922] px-3 py-2 text-slate-300">
+          <strong className="text-[#a793ff]">Impact note:</strong>{" "}
           {review.impact_note}
         </div>
       )}
@@ -75,7 +75,7 @@ function ReviewCard({ review }: { review: ReviewPayload }) {
 function ReviewSection({ title, items }: { title: string; items: string[] }) {
   return (
     <div>
-      <div className="mb-2 inline-block rounded-md border border-[#3d4f6f] bg-[#1e2a3a] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-200">
+      <div className="mb-2 inline-block rounded-md border border-[#454052] bg-[#24203a] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-200">
         {title}
       </div>
       {items.length ? (
@@ -134,7 +134,7 @@ export function ChatMessageBubble({ message, sessionId }: ChatMessageProps) {
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {!isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#3d4f6f] bg-[#1a2030] text-[10px] font-semibold text-slate-200">
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#454052] bg-[#1b1922] text-[10px] font-semibold text-slate-200">
           TB
         </div>
       )}
@@ -145,8 +145,8 @@ export function ChatMessageBubble({ message, sessionId }: ChatMessageProps) {
         <div
           className={`rounded-2xl px-4 py-3 text-[0.925rem] leading-relaxed ${
             isUser
-              ? "rounded-br-md bg-[#2a3347] text-slate-100"
-              : "rounded-bl-md border border-[#2a3140] bg-[#1c212b] text-slate-300"
+              ? "rounded-br-md bg-[#292531] text-slate-100"
+              : "rounded-bl-md border border-[#302e3a] bg-[#1a1920] text-slate-300"
           }`}
         >
           {!isReview && (
@@ -157,7 +157,7 @@ export function ChatMessageBubble({ message, sessionId }: ChatMessageProps) {
             <button
               type="button"
               onClick={() => void handleDownload()}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#3d4f6f] bg-[#222a3a] px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-[#2a3347]"
+              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#454052] bg-[#24203a] px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-[#302a4b]"
             >
               <Download className="h-4 w-4" strokeWidth={1.75} />
               Download PowerPoint
@@ -171,7 +171,7 @@ export function ChatMessageBubble({ message, sessionId }: ChatMessageProps) {
         >
           <span>{message.timestamp}</span>
           {isUser && (
-            <CheckCheck className="h-3.5 w-3.5 text-[#5b8def]" strokeWidth={1.75} />
+            <CheckCheck className="h-3.5 w-3.5 text-[#967dff]" strokeWidth={1.75} />
           )}
         </div>
       </div>

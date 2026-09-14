@@ -17,7 +17,7 @@ from src.guide_policy import build_pre_generate_message, deck_ready
 from src.layout_planner import plan_layout
 from src.ppt_generator import generate_case_study_ppt_bytes
 from src.schemas import CaseStudyState
-from src.slide_writer import write_slide_bullets
+from src.slide_writer import write_slide_content
 from src.storage import (
     read_download,
     resolve_template_path,
@@ -287,17 +287,18 @@ def _run_generate(session: ChatSession) -> None:
         structured["title"] = user_title
     session.structured_content = structured
 
-    slide_bullets = write_slide_bullets(structured, session.tone, session.audience)
-    slide_bullets["title"] = banner_title
-    session.slide_bullets = slide_bullets
+    slide_content = write_slide_content(structured, session.tone, session.audience)
+    slide_content["title"] = banner_title
+    # Keep the persisted field name for backward-compatible session restoration.
+    session.slide_bullets = slide_content
 
     template_path = _get_template_path(session)
     template_profile = analyze_template(template_path)
-    layout_plan = plan_layout(slide_bullets, template_profile, session.layout_preference)
+    layout_plan = plan_layout(slide_content, template_profile, session.layout_preference)
     session.layout_plan = layout_plan
 
     pptx_bytes, file_name = generate_case_study_ppt_bytes(
-        slide_bullets,
+        slide_content,
         template_path,
         layout_plan=layout_plan,
         title_override=banner_title,

@@ -30,6 +30,24 @@ app.add_middleware(
 
 PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
+# ── Teams bot (optional) ───────────────────────────────────────────────────
+# Mounted best-effort. Any failure here (missing botbuilder packages, import
+# error, bad config) leaves the web chat API fully functional and is reported
+# through /health rather than taking the whole service down.
+try:
+    from src.teams_bot import is_configured as teams_bot_configured
+    from src.teams_bot import router as teams_router
+
+    app.include_router(teams_router)
+    TEAMS_BOT_MOUNTED = True
+except Exception as _exc:  # pragma: no cover - depends on install profile
+    print(f"[api_server] Teams bot not mounted: {_exc.__class__.__name__}: {_exc}")
+    traceback.print_exc()
+    TEAMS_BOT_MOUNTED = False
+
+    def teams_bot_configured() -> bool:
+        return False
+
 
 class MessageRequest(BaseModel):
     session_id: str
@@ -49,8 +67,12 @@ def _require_session(session_id: str):
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "teams_bot_mounted": TEAMS_BOT_MOUNTED,
+        "teams_bot_configured": teams_bot_configured(),
+    }
 
 
 @app.post("/chat/session")

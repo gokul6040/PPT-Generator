@@ -1,0 +1,68 @@
+{
+  "title": "360 Degree View to Leasing Operations",
+  "sections": [
+    {
+      "heading": "Problem Statement",
+      "points": [
+        {
+          "label": "Data Integrity",
+          "description": "Duplicate CRM records and manual keying errors undermined trust in active lease data."
+        },
+        {
+          "label": "Manual Reporting",
+          "description": "Leasing managers built Excel reports manually instead of focusing on portfolio decisions."
+        },
+        {
+          "label": "Operational Visibility",
+          "description": "CRM data could not link maintenance bottlenecks with lease renewal risk."
+        },
+        {
+          "label": "Decision Latency",
+          "description": "Missing real-time insight delayed renewals, vacancy marketing, and maintenance responses."
+        }
+      ]
+    },
+    {
+      "heading": "Design and Implementation",
+      "points": [
+        {
+          "label": "Validated Data Pipeline",
+          "description": "Validation rules removed duplicate and erroneous CRM records for reliable reporting."
+        },
+        {
+          "label": "Power BI Dashboards",
+          "description": "Interactive views tracked revenue, leasing pipeline status, and occupancy using finalized prior-day data."
+        },
+        {
+          "label": "Conversational Agent",
+          "description": "Microsoft Teams and M365 Copilot enabled non-technical users to query lease data in natural language."
+        },
+        {
+          "label": "Predictive Models",
+          "description": "Machine learning produced 12-month portfolio revenue forecasts and tenant churn risk scores."
+        }
+      ]
+    },
+    {
+      "heading": "Impact",
+      "points": [
+        {
+          "label": "On-Demand Metrics",
+          "description": "Managers can query verified portfolio metrics in Microsoft Teams without compiling manual reports."
+        },
+        {
+          "label": "Trusted Figures",
+          "description": "The AI agent and Power BI dashboards show the same system-validated figures."
+        },
+        {
+          "label": "Renewal Risk Visibility",
+          "description": "Leadership can link maintenance history to lease renewal probability before retention issues grow."
+        },
+        {
+          "label": "Proactive Management",
+          "description": "Forecasts and churn risk scores help the leasing team protect cash flow and optimize occupancy."
+        }
+      ]
+    }
+  ]
+}

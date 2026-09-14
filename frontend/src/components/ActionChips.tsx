@@ -38,7 +38,7 @@ export function ActionChips({ onAction, onClear, disabled }: ActionChipsProps) {
           type="button"
           disabled={disabled}
           onClick={() => onAction(key)}
-          className="inline-flex items-center gap-2 rounded-full border border-[#3a4458] bg-[#171c26] px-3.5 py-2 text-sm text-slate-300 transition-colors hover:border-[#4a6fa5] hover:bg-[#1e2533] hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full border border-[#454052] bg-[#191820] px-3.5 py-2 text-sm text-slate-300 transition-colors hover:border-[#7656f5] hover:bg-[#252231] hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Icon className="h-4 w-4 text-slate-400" strokeWidth={1.75} />
           {label}
@@ -48,7 +48,7 @@ export function ActionChips({ onAction, onClear, disabled }: ActionChipsProps) {
         type="button"
         disabled={disabled}
         onClick={onClear}
-        className="inline-flex items-center gap-2 rounded-full border border-[#4a3038] bg-[#1a1719] px-3.5 py-2 text-sm text-slate-400 transition-colors hover:border-[#6b4048] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-full border border-[#5f3b47] bg-[#1b171b] px-3.5 py-2 text-sm text-slate-400 transition-colors hover:border-[#8b5363] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Trash2 className="h-4 w-4" strokeWidth={1.75} />
         Clear Chat

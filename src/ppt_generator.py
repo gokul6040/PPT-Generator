@@ -50,7 +50,11 @@ from src.config import (
     TWO_SEC_TOP_HEADING_X,
     TWO_SEC_TOP_HEADING_Y,
 )
-from src.slide_writer import bullets_to_body_text
+from src.slide_writer import (
+    bullets_to_body_text,
+    content_blocks_to_body_text,
+    section_to_content_blocks,
+)
 from src.text_fitter import split_text_for_slides
 
 _PML_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -100,15 +104,17 @@ def generate_case_study_ppt_bytes(
 def _build_slide_plan(sections: list[dict]) -> list[tuple[str, str]]:
     """
     Build (heading, body) pairs with correct Continued labels.
-    Accepts both prose format (content key) and bullet format (bullets key).
+    Accepts prose, legacy bullets, ordered blocks, and headline-plus-bullets.
     """
     slides: list[tuple[str, str]] = []
 
     for section in sections:
         heading = section["heading"]
 
-        # Bullet format takes priority over prose format
-        if "bullets" in section:
+        # Ordered hybrid format takes priority, followed by legacy bullets/prose.
+        if "blocks" in section or "headline" in section or "points" in section:
+            body = content_blocks_to_body_text(section_to_content_blocks(section))
+        elif "bullets" in section:
             bullet_list = section.get("bullets") or []
             body = bullets_to_body_text(bullet_list)
         else:
@@ -140,6 +146,10 @@ def _snapshot_clean_slide(slide) -> dict:
 def _create_slide_from_snapshot(prs: Presentation, snapshot: dict):
     """Create a new slide that mirrors the original clean template."""
     new_slide = prs.slides.add_slide(snapshot["layout"])
+    # python-pptx does not always persist master graphics on duplicated custom
+    # template slides. Explicitly retain them so each generated slide keeps the
+    # shared TurnB banner, logo, and footer artwork.
+    new_slide._element.set("showMasterSp", "1")
     sp_tree = new_slide.shapes._spTree
 
     for child in list(sp_tree):
@@ -184,6 +194,8 @@ def _write_slide_spec(slide, spec: dict, title: str | None = None):
     if "_body" in spec:
         # Legacy path from old _build_slide_plan — body is already a formatted string
         body = spec["_body"]
+    elif "blocks" in spec or "headline" in spec or "points" in spec:
+        body = content_blocks_to_body_text(section_to_content_blocks(spec))
     else:
         bullets = spec.get("bullets") or []
         body = bullets_to_body_text(bullets)
@@ -207,7 +219,10 @@ def _write_two_section_slide(slide, sections: list[dict], title: str | None = No
             x=TWO_SEC_TOP_HEADING_X, y=TWO_SEC_TOP_HEADING_Y,
             w=TWO_SEC_TOP_HEADING_W, h=TWO_SEC_TOP_HEADING_H,
         )
-        top_body = bullets_to_body_text(top.get("bullets") or [])
+        if "blocks" in top or "headline" in top or "points" in top:
+            top_body = content_blocks_to_body_text(section_to_content_blocks(top))
+        else:
+            top_body = bullets_to_body_text(top.get("bullets") or [])
         if top_body:
             _add_body(
                 slide, top_body,
@@ -222,7 +237,10 @@ def _write_two_section_slide(slide, sections: list[dict], title: str | None = No
             x=TWO_SEC_BOT_HEADING_X, y=TWO_SEC_BOT_HEADING_Y,
             w=TWO_SEC_BOT_HEADING_W, h=TWO_SEC_BOT_HEADING_H,
         )
-        bot_body = bullets_to_body_text(bot.get("bullets") or [])
+        if "blocks" in bot or "headline" in bot or "points" in bot:
+            bot_body = content_blocks_to_body_text(section_to_content_blocks(bot))
+        else:
+            bot_body = bullets_to_body_text(bot.get("bullets") or [])
         if bot_body:
             _add_body(
                 slide, bot_body,
@@ -408,8 +426,16 @@ def _add_body(slide, text: str, *, x=BODY_X, y=BODY_Y, w=BODY_W, h=BODY_H):
         para = tf.paragraphs[0] if first else tf.add_paragraph()
         first = False
         _add_body_line(para, line)
-        if i < len(lines) - 1:
-            para.space_after = BODY_PARAGRAPH_SPACE_AFTER
+        stripped = line.strip()
+        is_subheading = stripped.startswith("**") and stripped.endswith("**")
+        is_bullet = stripped.startswith("•")
+        if is_subheading:
+            if i > 0:
+                para.space_before = Pt(6)
+            para.space_after = Pt(3)
+        elif i < len(lines) - 1:
+            base_gap = 10 if is_bullet else BODY_PARAGRAPH_SPACE_AFTER.pt
+            para.space_after = Pt(base_gap)
 
 
 def _is_quote_line(line: str) -> bool:

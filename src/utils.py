@@ -201,19 +201,23 @@ def parse_json_response(raw: str) -> dict:
     # Strip markdown fences if present
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
 
-    # Try direct parse
+    # Try direct parse first.
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    # Try to extract the first JSON object in the string
-    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-    if match:
+    # Models occasionally return a correct JSON object followed by commentary.
+    # Decode the first complete object rather than using a greedy regex, which
+    # treats the trailing prose as part of the JSON candidate.
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", cleaned):
         try:
-            return json.loads(match.group())
+            value, _ = decoder.raw_decode(cleaned[match.start():])
         except json.JSONDecodeError:
-            pass
+            continue
+        if isinstance(value, dict):
+            return value
 
     raise ValueError(
         f"LLM returned invalid JSON. Raw response (first 500 chars):\n{raw[:500]}"

@@ -11,3 +11,5 @@ uvicorn[standard]
 python-multipart
 httpx
 supervisor
+botbuilder-core
+botbuilder-integration-aiohttp

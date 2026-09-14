@@ -1,8 +1,9 @@
 """
 Decide how many slides to create and which layout each slide uses.
 
-Takes slide_bullets (from slide_writer) + template_profile (from template_analyzer)
-+ user's layout_preference and returns a layout_plan dict.
+Takes slide content (from slide_writer) + template_profile (from template_analyzer)
++ user's layout_preference and returns a layout_plan dict. Headline-and-bullet
+sections are converted to ordered render blocks before fitting.
 
 Layout plan format:
 {
@@ -11,6 +12,7 @@ Layout plan format:
     "slides": [
         {"type": "single",       "heading": str, "bullets": [str, ...]},
         {"type": "continuation", "heading": str, "bullets": [str, ...]},
+        {"type": "single",       "heading": str, "blocks": [dict, ...]},
         {"type": "two_section",  "sections": [
             {"heading": str, "bullets": [str, ...]},
             {"heading": str, "bullets": [str, ...]},
@@ -19,12 +21,21 @@ Layout plan format:
 }
 """
 from src.slide_fit import (
+    blocks_fit,
     bullets_fit,
+    is_orphan_block_chunk,
     is_orphan_chunk,
+    pack_blocks,
     pack_bullets,
 )
+from src.slide_writer import section_to_content_blocks
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+_WEBSITE_DISPLAY_HEADINGS = {
+    "Design and Implementation": "TurnB Approach",
+    "Impact": "Implications",
+}
 
 def _base_heading(heading: str) -> str:
     return heading.replace(" Continued", "").strip()
@@ -44,6 +55,39 @@ def _make_two_section(sec_a: dict, sec_b: dict) -> dict:
         "sections": [
             {"heading": sec_a["heading"], "bullets": list(sec_a.get("bullets") or [])},
             {"heading": sec_b["heading"], "bullets": list(sec_b.get("bullets") or [])},
+        ],
+    }
+
+
+def _make_block_single(heading: str, blocks: list[dict]) -> dict:
+    return {
+        "type": "single",
+        "heading": _WEBSITE_DISPLAY_HEADINGS.get(heading, heading),
+        "blocks": list(blocks),
+    }
+
+
+def _make_block_continuation(heading: str, blocks: list[dict]) -> dict:
+    display_heading = _WEBSITE_DISPLAY_HEADINGS.get(heading, heading)
+    return {
+        "type": "continuation",
+        "heading": f"{display_heading} Continued",
+        "blocks": list(blocks),
+    }
+
+
+def _make_block_two_section(sec_a: dict, sec_b: dict) -> dict:
+    return {
+        "type": "two_section",
+        "sections": [
+            {
+                "heading": _WEBSITE_DISPLAY_HEADINGS.get(sec_a["heading"], sec_a["heading"]),
+                "blocks": list(sec_a.get("blocks") or []),
+            },
+            {
+                "heading": _WEBSITE_DISPLAY_HEADINGS.get(sec_b["heading"], sec_b["heading"]),
+                "blocks": list(sec_b.get("blocks") or []),
+            },
         ],
     }
 
@@ -71,6 +115,26 @@ def _split_section(heading: str, bullets: list[str], *, half: bool = False) -> l
         else:
             slides.append(_make_continuation(heading, chunk))
     return slides
+
+
+def _truncate_blocks_to_fit(blocks: list[dict], *, half: bool = False) -> list[dict]:
+    if not blocks:
+        return []
+    chunks = pack_blocks(blocks, half=half)
+    return chunks[0] if chunks else []
+
+
+def _split_block_section(heading: str, blocks: list[dict]) -> list[dict]:
+    """Split an ordered section while keeping subsection headings with content."""
+    if not blocks:
+        return [_make_block_single(heading, [])]
+    chunks = pack_blocks(blocks)
+    return [
+        _make_block_single(heading, chunk)
+        if index == 0
+        else _make_block_continuation(heading, chunk)
+        for index, chunk in enumerate(chunks)
+    ]
 
 
 def _prevent_orphan_continuations(slides: list[dict]) -> list[dict]:
@@ -111,6 +175,30 @@ def _prevent_orphan_continuations(slides: list[dict]) -> list[dict]:
         if orphan_bullets:
             merged.append(_make_continuation(_base_heading(slide.get("heading", "")), orphan_bullets))
 
+    return merged
+
+
+def _prevent_orphan_block_continuations(slides: list[dict]) -> list[dict]:
+    """Merge light block continuations when the combined content still fits."""
+    if len(slides) < 2:
+        return slides
+    merged: list[dict] = []
+    for slide in slides:
+        if slide.get("type") != "continuation" or not merged:
+            merged.append(slide)
+            continue
+        blocks = slide.get("blocks") or []
+        previous = merged[-1]
+        same_section = _base_heading(previous.get("heading", "")) == _base_heading(
+            slide.get("heading", "")
+        )
+        combined = (previous.get("blocks") or []) + blocks
+        if same_section and is_orphan_block_chunk(blocks) and blocks_fit(combined):
+            merged[-1] = _make_block_single(
+                _base_heading(previous.get("heading", "")), combined
+            )
+        else:
+            merged.append(slide)
     return merged
 
 
@@ -178,6 +266,54 @@ def _plan_auto(sections: list[dict]) -> list[dict]:
     return _plan_one_section(sections)
 
 
+# ── Ordered content-block planners ──────────────────────────────────────────
+
+def _plan_blocks_exact_3(sections: list[dict]) -> list[dict]:
+    """Honor an explicit three-slide request, retaining as much as safely fits."""
+    return [
+        _make_block_single(
+            section["heading"], _truncate_blocks_to_fit(section.get("blocks") or [])
+        )
+        for section in sections
+    ]
+
+
+def _plan_blocks_compact(sections: list[dict]) -> list[dict]:
+    if len(sections) < 3:
+        return _plan_blocks_one_section(sections)
+    problem, design, impact = sections[0], sections[1], sections[2]
+    problem_blocks = problem.get("blocks") or []
+    design_blocks = design.get("blocks") or []
+    if (
+        blocks_fit(problem_blocks, half=True, which_half="top")
+        and blocks_fit(design_blocks, half=True, which_half="bottom")
+        and blocks_fit(impact.get("blocks") or [])
+    ):
+        return [
+            _make_block_two_section(problem, design),
+            _make_block_single(impact["heading"], impact.get("blocks") or []),
+        ]
+    return _plan_blocks_one_section(sections)
+
+
+def _plan_blocks_one_section(sections: list[dict]) -> list[dict]:
+    slides: list[dict] = []
+    for section in sections:
+        slides.extend(
+            _split_block_section(section["heading"], section.get("blocks") or [])
+        )
+    return slides
+
+
+def _plan_blocks_auto(sections: list[dict]) -> list[dict]:
+    total_blocks = sum(len(section.get("blocks") or []) for section in sections)
+    if total_blocks <= 8:
+        compact = _plan_blocks_compact(sections)
+        if len(compact) == 2 and compact[0].get("type") == "two_section":
+            return compact
+    return _plan_blocks_one_section(sections)
+
+
 # ── Main entry point ─────────────────────────────────────────────────────────
 
 def plan_layout(
@@ -193,6 +329,31 @@ def plan_layout(
     layout_preference: "auto" | "exact_3_slides" | "compact" | "split_if_needed" | "one_section_per_slide"
     """
     sections = slide_bullets.get("sections", [])
+
+    if any(
+        "blocks" in section or "headline" in section or "points" in section
+        for section in sections
+    ):
+        block_sections = [
+            {
+                "heading": section.get("heading", ""),
+                "blocks": section_to_content_blocks(section),
+            }
+            for section in sections
+        ]
+        block_planners = {
+            "exact_3_slides": _plan_blocks_exact_3,
+            "compact": _plan_blocks_compact,
+            "split_if_needed": _plan_blocks_one_section,
+            "one_section_per_slide": _plan_blocks_one_section,
+        }
+        block_planner = block_planners.get(layout_preference, _plan_blocks_auto)
+        slides = _prevent_orphan_block_continuations(block_planner(block_sections))
+        return {
+            "preference": layout_preference,
+            "total_slides": len(slides),
+            "slides": slides,
+        }
 
     planners = {
         "exact_3_slides": _plan_exact_3,

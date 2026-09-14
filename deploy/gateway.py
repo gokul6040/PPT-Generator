@@ -1,8 +1,8 @@
 """Single-port reverse proxy for unified container deploy.
 
 Routes:
-  /health, /chat/*, /download/* -> FastAPI (127.0.0.1:8000)
-  everything else               -> Next.js (127.0.0.1:3000)
+  /health, /chat/*, /download/*, /api/messages -> FastAPI (127.0.0.1:8000)
+  everything else                             -> Next.js (127.0.0.1:3000)
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ HOP_BY_HOP_HEADERS = {
 
 
 def _upstream_base(path: str) -> str:
-    if path == "health" or path.startswith("chat") or path.startswith("download"):
+    if path == "health" or path.startswith(("chat", "download", "api/messages")):
         return API
     return WEB
 

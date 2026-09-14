@@ -51,9 +51,9 @@ export function ChatInput({
   };
 
   return (
-    <div className="shrink-0 border-t border-[#2a3140] bg-[#12151c] px-4 py-4 md:px-10 lg:px-16">
+    <div className="shrink-0 border-t border-[#302e3a] bg-[#141319] px-4 py-4 md:px-10 lg:px-16">
       <div className="w-full">
-      <div className="flex items-end gap-2 rounded-[1.75rem] border border-[#2f3848] bg-[#141820] px-2 py-2 shadow-inner">
+      <div className="flex items-end gap-2 rounded-[1.75rem] border border-[#383543] bg-[#17161d] px-2 py-2 shadow-inner">
         <input
           ref={fileInputRef}
           type="file"
@@ -70,7 +70,7 @@ export function ChatInput({
           aria-label="Upload file"
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
-          className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#3d4f6f] text-slate-300 transition-colors hover:bg-[#1e2533] hover:text-slate-100 disabled:opacity-50"
+          className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#454052] text-slate-300 transition-colors hover:bg-[#252231] hover:text-slate-100 disabled:opacity-50"
         >
           <Plus className="h-5 w-5" strokeWidth={1.75} />
         </button>
@@ -91,7 +91,7 @@ export function ChatInput({
           aria-label="Send message"
           disabled={disabled || !value.trim()}
           onClick={onSend}
-          className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[#111318] transition-opacity hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+          className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7656f5] text-white transition-opacity hover:bg-[#896eff] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowUp className="h-5 w-5" strokeWidth={2} />
         </button>

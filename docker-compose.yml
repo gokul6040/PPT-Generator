@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: gokulturnb/autonomous-ppt-agent:latest
+    image: gokulturnb/autonomous-ppt-agent:updatedprompt
     container_name: turnb-ppt-agent
     ports:
       - "8501:8501"

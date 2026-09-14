@@ -9,6 +9,9 @@ Requires only python-pptx and the project's own src/ modules.
 """
 import os
 import sys
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -120,7 +123,12 @@ def test_schemas():
 
 
 def test_slide_writer_helpers():
-    from src.slide_writer import bullets_to_body_text, _normalize_bullets
+    from src.slide_writer import (
+        _normalize_blocks,
+        _normalize_bullets,
+        bullets_to_body_text,
+        section_to_content_blocks,
+    )
 
     # bullets_to_body_text
     assert bullets_to_body_text([]) == ""
@@ -140,26 +148,461 @@ def test_slide_writer_helpers():
     raw = {
         "title": "LLM Invented Title",
         "sections": [
-            {"heading": "Problem Statement",         "bullets": ["• Bullet 1", "- Bullet 2", "Plain"]},
-            {"heading": "Design and Implementation", "bullets": ["Clean design bullet"]},
-            {"heading": "Impact",                    "bullets": ["Impact bullet invented"]},
+            {"heading": "Problem Statement", "points": [
+                {"label": "First Issue", "description": "Bullet 1"},
+                {"label": "Second Issue", "description": "Bullet 2"},
+                {"label": "Plain Detail", "description": "Plain"},
+            ]},
+            {"heading": "Design and Implementation", "points": [
+                {"label": "Design", "description": "Clean design detail"},
+            ]},
+            {"heading": "Impact", "points": [
+                {"label": "Impact", "description": "Impact detail invented"},
+            ]},
         ],
     }
     norm = _normalize_bullets(raw, structured)
 
     assert norm["title"] == "Real Title", f"Title must be from structured, got: {norm['title']}"
 
-    pb = norm["sections"][0]["bullets"]
-    assert all(not b.startswith("•") for b in pb), f"• prefix not stripped: {pb}"
-    assert all(not b.startswith("-") for b in pb), f"- prefix not stripped: {pb}"
-    assert len(pb) == 3
+    points = norm["sections"][0]["points"]
+    assert len(points) == 3
+    assert points[0] == {"label": "First Issue", "description": "Bullet 1"}
 
-    imp = norm["sections"][2]["bullets"]
-    assert imp == [], f"Impact bullets should be empty (empty source section): {imp}"
+    imp = norm["sections"][2]["points"]
+    assert imp == [], f"Impact points should be empty (empty source section): {imp}"
 
     # Sections must always be in correct order
     headings = [s["heading"] for s in norm["sections"]]
     assert headings == ["Problem Statement", "Design and Implementation", "Impact"]
+
+    # Regression: source-backed sections must never become heading-only slides
+    # when the LLM omits their points.
+    missing_design = {
+        "sections": [
+            {"heading": "Problem Statement", "points": [{"label": "Records", "description": "Records were unreliable."}]},
+            {"heading": "Design and Implementation", "points": []},
+            {"heading": "Impact", "points": [{"label": "Visibility", "description": "Leaders gained visibility."}]},
+        ],
+    }
+    fallback_source = {
+        "title": "Real Title",
+        "sections": [
+            {"heading": "Problem Statement", "content": "Records were unreliable."},
+            {
+                "heading": "Design and Implementation",
+                "content": "Built a validated lease-data pipeline.\n\nDeployed a Teams-based AI query agent.",
+            },
+            {"heading": "Impact", "content": "Leaders gained visibility."},
+        ],
+    }
+    recovered = _normalize_bullets(missing_design, fallback_source)
+    design = recovered["sections"][1]
+    assert design["points"] == [
+        {"label": "", "description": "Built a validated lease-data pipeline."},
+        {"label": "", "description": "Deployed a Teams-based AI query agent."},
+    ]
+    assert section_to_content_blocks(design), "Non-empty source must yield slide body blocks"
+
+    recovered_blocks = _normalize_blocks(
+        {"sections": [{"heading": heading, "blocks": []} for heading in headings]},
+        fallback_source,
+    )
+    assert recovered_blocks["sections"][1]["blocks"], (
+        "The ordered-block path must also preserve non-empty source content"
+    )
+
+
+def test_content_structurer_retries_invalid_json():
+    from src.content_structurer import structure_case_study_content
+
+    valid_result = {
+        "title": "Portfolio Analytics",
+        "sections": [
+            {"heading": "Problem Statement", "content": "Records contained duplicates."},
+            {"heading": "Design and Implementation", "content": "The team built a dashboard."},
+            {"heading": "Impact", "content": "Leaders gained portfolio visibility."},
+        ],
+    }
+    invalid_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content='```json\n{"title":"Truncated"'))]
+    )
+    valid_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content=json.dumps(valid_result)))
+        ]
+    )
+    fake_client = SimpleNamespace(max_tokens=4096)
+    with (
+        patch("src.content_structurer.get_llm_client", return_value=(fake_client, "test-model")),
+        patch(
+            "src.content_structurer.llm_chat_completion",
+            side_effect=[invalid_response, valid_response],
+        ) as completion,
+    ):
+        result = structure_case_study_content("Case study source content")
+
+    assert result == valid_result
+    assert completion.call_count == 2
+    assert completion.call_args_list[0].kwargs["max_tokens"] == 8192
+    retry_call = completion.call_args_list[1].kwargs
+    assert retry_call["temperature"] == 0.0
+    assert "CRITICAL OUTPUT RETRY" in retry_call["messages"][0]["content"]
+
+
+def test_content_structurer_retries_wrong_json_schema():
+    from src.content_structurer import structure_case_study_content
+
+    wrong_schema = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content='{"heading":"Problem Statement"}'))]
+    )
+    valid_result = {
+        "title": "Portfolio Analytics",
+        "sections": [
+            {"heading": "Problem Statement", "content": "Records contained duplicates."},
+            {"heading": "Design and Implementation", "content": "The team built a dashboard."},
+            {"heading": "Impact", "content": "Leaders gained visibility."},
+        ],
+    }
+    valid_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(valid_result)))]
+    )
+    with (
+        patch("src.content_structurer.get_llm_client", return_value=(object(), "test-model")),
+        patch(
+            "src.content_structurer.llm_chat_completion",
+            side_effect=[wrong_schema, valid_response],
+        ) as completion,
+    ):
+        result = structure_case_study_content("Case study source content")
+
+    assert result == valid_result
+    assert completion.call_count == 2
+    assert "CRITICAL OUTPUT RETRY" in completion.call_args_list[1].kwargs["messages"][0]["content"]
+
+
+def test_json_parser_accepts_trailing_model_commentary():
+    from src.utils import parse_json_response
+
+    raw = '''```json
+    {"title":"Lease Data Transformation","sections":[]}
+    ```
+    Wait, I need to re-read the source before continuing.'''
+    assert parse_json_response(raw) == {
+        "title": "Lease Data Transformation",
+        "sections": [],
+    }
+
+
+def test_content_structurer_splits_single_paragraph_fallback_units():
+    from src.content_structurer import _source_units
+
+    source = (
+        "Lease Data Transformation  CRM records contained duplicates. "
+        "The team built a validated data warehouse. "
+        "Leaders gained on-demand portfolio insights."
+    )
+    assert _source_units(source) == [
+        "Lease Data Transformation",
+        "CRM records contained duplicates.",
+        "The team built a validated data warehouse.",
+        "Leaders gained on-demand portfolio insights.",
+    ]
+
+
+def test_content_structurer_uses_compact_indexed_fallback():
+    from src.content_structurer import structure_case_study_content
+
+    source = """Portfolio Analytics
+
+Problem Statement
+
+Records contained duplicates and phantom entries.
+
+Design and Implementation
+
+The team built a centralized portfolio dashboard.
+
+Impact
+
+Leaders gained trusted portfolio visibility."""
+    invalid_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content='```json\n{"title":"Truncated"'))]
+    )
+    indexed_result = {
+        "title": "Portfolio Analytics",
+        "sections": [
+            {"heading": "Problem Statement", "unit_ids": [3]},
+            {"heading": "Design and Implementation", "unit_ids": [5]},
+            {"heading": "Impact", "unit_ids": [7]},
+        ],
+    }
+    indexed_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content=json.dumps(indexed_result)))
+        ]
+    )
+    fake_client = SimpleNamespace(max_tokens=4096)
+    with (
+        patch("src.content_structurer.get_llm_client", return_value=(fake_client, "test-model")),
+        patch(
+            "src.content_structurer.llm_chat_completion",
+            side_effect=[invalid_response, invalid_response, indexed_response],
+        ) as completion,
+    ):
+        result = structure_case_study_content(source)
+
+    assert completion.call_count == 3
+    assert completion.call_args_list[2].kwargs["max_tokens"] == 2048
+    assert result == {
+        "title": "Portfolio Analytics",
+        "sections": [
+            {"heading": "Problem Statement", "content": "Records contained duplicates and phantom entries."},
+            {"heading": "Design and Implementation", "content": "The team built a centralized portfolio dashboard."},
+            {"heading": "Impact", "content": "Leaders gained trusted portfolio visibility."},
+        ],
+    }
+
+
+def test_content_structurer_recovers_omitted_explicit_section():
+    from src.content_structurer import structure_case_study_content
+
+    source = """Leasing Operations
+
+Problem Statement
+
+CRM records were unreliable.
+
+TurnB Approach
+
+Built a validated lease-data pipeline and Teams query agent.
+
+Implications
+
+Leaders could act earlier on renewal risk."""
+    omitted_design = {
+        "title": "Leasing Operations",
+        "sections": [
+            {"heading": "Problem Statement", "content": "CRM records were unreliable."},
+            {"heading": "Design and Implementation", "content": ""},
+            {"heading": "Impact", "content": ""},
+        ],
+    }
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(omitted_design)))]
+    )
+    with (
+        patch("src.content_structurer.get_llm_client", return_value=(object(), "test-model")),
+        patch("src.content_structurer.llm_chat_completion", return_value=response),
+    ):
+        result = structure_case_study_content(source)
+
+    assert result["sections"][1]["content"] == (
+        "Built a validated lease-data pipeline and Teams query agent."
+    )
+    assert result["sections"][2]["content"] == (
+        "Leaders could act earlier on renewal risk."
+    )
+
+
+def test_hybrid_case_study_content_blocks():
+    from src.layout_planner import plan_layout
+    from src.slide_writer import (
+        _normalize_blocks,
+        content_blocks_to_body_text,
+        section_to_content_blocks,
+        source_content_to_blocks,
+        write_slide_content,
+    )
+
+    structured = {
+        "title": "AI-Enabled Power BI Dashboard",
+        "sections": [
+            {"heading": "Problem Statement", "content": "Context followed by challenges."},
+            {"heading": "Design and Implementation", "content": "Approach groups and details."},
+            {"heading": "Impact", "content": "Summary followed by outcomes."},
+        ],
+    }
+    raw = {
+        "title": "Invented title",
+        "sections": [
+            {
+                "heading": "Problem Statement",
+                "blocks": [
+                    {"type": "paragraph", "text": "The global program scaled across regions and partners."},
+                    {"type": "bullet", "text": "• No single source of truth existed."},
+                    {"type": "paragraph", "text": "The client needed centralized visibility without additional program cost."},
+                ],
+            },
+            {
+                "heading": "Design and Implementation",
+                "blocks": [
+                    {"type": "subheading", "text": "**Identifying Stakeholder Needs & Gaps**"},
+                    {"type": "bullet", "text": "Conducted stakeholder feedback sessions across multiple levels."},
+                    {"type": "bullet", "text": "Defined the critical business questions the dashboard needed to answer."},
+                    {"type": "subheading", "text": "Building a Centralized Power BI Dashboard:"},
+                    {"type": "bullet", "text": "Delivered unified reporting across regions and training partners."},
+                ],
+            },
+            {
+                "heading": "Impact",
+                "blocks": [
+                    {"type": "paragraph", "text": "The dashboard transformed program oversight."},
+                    {"type": "bullet", "text": "Improved planning through real-time utilization insight."},
+                ],
+            },
+        ],
+    }
+    normalized = _normalize_blocks(raw, structured)
+    assert normalized["title"] == structured["title"]
+    problem = normalized["sections"][0]["blocks"]
+    assert [block["type"] for block in problem] == ["paragraph", "bullet", "paragraph"]
+    assert problem[1]["text"] == "No single source of truth existed."
+    design = normalized["sections"][1]["blocks"]
+    assert design[0] == {"type": "subheading", "text": "Identifying Stakeholder Needs & Gaps"}
+    assert design[3] == {"type": "subheading", "text": "Building a Centralized Power BI Dashboard"}
+
+    body = content_blocks_to_body_text(design)
+    assert "**Identifying Stakeholder Needs & Gaps**" in body
+    assert "• Conducted stakeholder feedback sessions" in body
+
+    website_text = """Opening client context for the case study and its global program.\n\n- First challenge remained unresolved.\n- Second challenge limited forward-looking planning.\n\n**Proactive Risk Monitoring**\n\n- Introduced early warning indicators.\n"""
+    parsed = source_content_to_blocks(website_text)
+    assert [block["type"] for block in parsed] == [
+        "paragraph", "bullet", "bullet", "subheading", "bullet"
+    ]
+    prompt_result = {
+        "title": "Website-ready",
+        "sections": [
+            {
+                "heading": "Problem Statement",
+                "points": [
+                    {"label": "First Challenge", "description": "The first challenge remained unresolved across the program."},
+                    {"label": "Planning Constraint", "description": "The second challenge limited forward-looking planning for stakeholders."},
+                    {"label": "Risk Monitoring", "description": "Early warning indicators enabled proactive risk monitoring."},
+                ],
+            },
+            {"heading": "Design and Implementation", "points": []},
+            {"heading": "Impact", "points": []},
+        ],
+    }
+    fake_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(prompt_result))
+            )
+        ]
+    )
+    with (
+        patch("src.slide_writer.get_llm_client", return_value=(object(), "test-model")),
+        patch("src.slide_writer.llm_chat_completion", return_value=fake_response) as completion,
+    ):
+        direct = write_slide_content({
+            "title": "Website-ready",
+            "sections": [
+                {"heading": "Problem Statement", "content": website_text},
+                {"heading": "Design and Implementation", "content": ""},
+                {"heading": "Impact", "content": ""},
+            ],
+        })
+    assert completion.call_count == 1, "Structured source content must not bypass the slide-writer prompt"
+    assert direct["sections"][0]["points"] == prompt_result["sections"][0]["points"]
+    rendered_blocks = section_to_content_blocks(direct["sections"][0])
+    assert rendered_blocks[0] == {
+        "type": "bullet",
+        "text": "**First Challenge:** The first challenge remained unresolved across the program.",
+    }
+    assert [block["type"] for block in rendered_blocks] == ["bullet", "bullet", "bullet"]
+
+    headline_plan = plan_layout(direct, _TEMPLATE_PROFILE, "auto")
+    planned_sections = []
+    for slide in headline_plan["slides"]:
+        if slide.get("type") == "two_section":
+            planned_sections.extend(slide.get("sections") or [])
+        else:
+            planned_sections.append(slide)
+    problem_slide = next(
+        slide for slide in planned_sections
+        if slide.get("heading") == "Problem Statement"
+    )
+    assert problem_slide["blocks"][0]["text"] == rendered_blocks[0]["text"]
+
+    # Rich website-style content must be split without dropping or reordering blocks.
+    long_blocks = []
+    for index in range(5):
+        long_blocks.extend([
+            {"type": "subheading", "text": f"Approach Area {index + 1}"},
+            {
+                "type": "bullet",
+                "text": f"Delivered detailed capability {index + 1} across regions, partners, stakeholder groups, reporting workflows, and governance requirements.",
+            },
+            {
+                "type": "bullet",
+                "text": f"Enabled proactive action {index + 1} through standardized performance measures, tailored insights, and consistent interpretation.",
+            },
+            {
+                "type": "bullet",
+                "text": f"Replaced fragmented reporting process {index + 1} with centralized governance and accessible operational detail.",
+            },
+            {
+                "type": "bullet",
+                "text": f"Supported stakeholder decision path {index + 1} with early indicators, automated summaries, and focused interventions.",
+            },
+        ])
+    rich = {
+        "title": "Rich Case Study",
+        "sections": [
+            normalized["sections"][0],
+            {"heading": "Design and Implementation", "blocks": long_blocks},
+            normalized["sections"][2],
+        ],
+    }
+    plan = plan_layout(rich, _TEMPLATE_PROFILE, "auto")
+    assert plan["total_slides"] > 3
+    planned_design = [
+        block
+        for slide in plan["slides"]
+        if "TurnB Approach" in slide.get("heading", "")
+        for block in slide.get("blocks", [])
+    ]
+    assert planned_design == long_blocks
+    for slide in plan["slides"]:
+        blocks = slide.get("blocks") or []
+        assert not blocks or blocks[-1].get("type") != "subheading"
+
+    # The existing application renderer must emit the hybrid hierarchy in PPTX.
+    if os.path.exists("templates/sample_template.pptx"):
+        import io
+        from pptx import Presentation
+        from src.ppt_generator import generate_case_study_ppt_bytes
+
+        pptx_bytes, _ = generate_case_study_ppt_bytes(
+            rich, "templates/sample_template.pptx", layout_plan=plan
+        )
+        presentation = Presentation(io.BytesIO(pptx_bytes))
+        assert len(presentation.slides) == plan["total_slides"]
+        visible_text = "\n".join(
+            shape.text
+            for slide in presentation.slides
+            for shape in slide.shapes
+            if hasattr(shape, "text_frame")
+        )
+        assert "TurnB Approach" in visible_text
+        assert "Implications" in visible_text
+        assert "Approach Area 1" in visible_text
+        assert "• Delivered detailed capability 1" in visible_text
+
+        headline_bytes, _ = generate_case_study_ppt_bytes(
+            direct, "templates/sample_template.pptx", layout_plan=headline_plan
+        )
+        headline_presentation = Presentation(io.BytesIO(headline_bytes))
+        headline_text = "\n".join(
+            shape.text
+            for slide in headline_presentation.slides
+            for shape in slide.shapes
+            if hasattr(shape, "text_frame")
+        )
+        assert "First Challenge: The first challenge remained unresolved" in headline_text
 
 
 def test_layout_planner_auto():
@@ -679,6 +1122,13 @@ TESTS = [
     test_config,
     test_schemas,
     test_slide_writer_helpers,
+    test_content_structurer_retries_invalid_json,
+    test_content_structurer_retries_wrong_json_schema,
+    test_json_parser_accepts_trailing_model_commentary,
+    test_content_structurer_splits_single_paragraph_fallback_units,
+    test_content_structurer_uses_compact_indexed_fallback,
+    test_content_structurer_recovers_omitted_explicit_section,
+    test_hybrid_case_study_content_blocks,
     test_layout_planner_auto,
     test_layout_planner_exact_3,
     test_layout_planner_compact,

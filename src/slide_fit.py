@@ -229,3 +229,114 @@ def _balance_pair(
             break
 
     return out
+
+
+# ── Ordered case-study content blocks ───────────────────────────────────────
+
+def block_display_text(block: dict) -> str:
+    """Return the text that will be visible for one content block."""
+    block_type = str(block.get("type") or "paragraph").strip().lower()
+    text = str(block.get("text") or "").strip()
+    if block_type == "bullet":
+        return f"• {text}"
+    return text
+
+
+def wrapped_lines_for_block(block: dict, width_in: float, font_pt: float) -> int:
+    text = block_display_text(block)
+    cpl = chars_per_line(width_in, font_pt)
+    return max(1, (len(text) + cpl - 1) // cpl)
+
+
+def estimate_blocks_height(
+    blocks: list[dict],
+    *,
+    half: bool = False,
+    which_half: str = "top",
+    font_pt: float | None = None,
+) -> float:
+    """Estimate the height of paragraphs, subsection headings, and bullets."""
+    if not blocks:
+        return 0.0
+    pt = font_pt or BODY_FONT_SIZE.pt
+    width_in, _ = _body_box(half=half, which_half=which_half)
+    line_height = line_height_in(pt)
+    regular_gap = BODY_PARAGRAPH_SPACE_AFTER.pt / 72.0
+    total = 0.0
+    for index, block in enumerate(blocks):
+        total += wrapped_lines_for_block(block, width_in, pt) * line_height
+        if index < len(blocks) - 1:
+            # Subheadings stay visually attached to the supporting content below.
+            total += regular_gap * (0.55 if block.get("type") == "subheading" else 1.0)
+    return total
+
+
+def blocks_fit(
+    blocks: list[dict],
+    *,
+    half: bool = False,
+    which_half: str = "top",
+) -> bool:
+    if not blocks:
+        return True
+    return any(
+        estimate_blocks_height(
+            blocks, half=half, which_half=which_half, font_pt=font_pt
+        ) <= max_body_height(half=half, which_half=which_half, font_pt=font_pt)
+        for font_pt in _READABLE_FONT_STEPS
+    )
+
+
+def _block_units(blocks: list[dict]) -> list[list[dict]]:
+    """Group each subsection heading with at least its first supporting block."""
+    units: list[list[dict]] = []
+    index = 0
+    while index < len(blocks):
+        block = blocks[index]
+        if block.get("type") == "subheading" and index + 1 < len(blocks):
+            units.append([block, blocks[index + 1]])
+            index += 2
+        else:
+            units.append([block])
+            index += 1
+    return units
+
+
+def pack_blocks(
+    blocks: list[dict],
+    *,
+    half: bool = False,
+    which_half: str = "top",
+) -> list[list[dict]]:
+    """Pack ordered content without orphaning a subsection heading."""
+    if not blocks:
+        return [[]]
+    if blocks_fit(blocks, half=half, which_half=which_half):
+        return [list(blocks)]
+
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+    for unit in _block_units(blocks):
+        candidate = current + unit
+        if current and not blocks_fit(candidate, half=half, which_half=which_half):
+            chunks.append(current)
+            current = list(unit)
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def is_orphan_block_chunk(
+    blocks: list[dict],
+    *,
+    half: bool = False,
+    which_half: str = "top",
+) -> bool:
+    if not blocks:
+        return True
+    max_height = max_body_height(half=half, which_half=which_half)
+    return estimate_blocks_height(
+        blocks, half=half, which_half=which_half
+    ) < ORPHAN_HEIGHT_RATIO * max_height

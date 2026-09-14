@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.23/MicrosoftTeams.schema.json",
   "manifestVersion": "1.23",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "id": "b8e9eac6-590f-4e76-ad52-eaf2559a474f",
   "developer": {
     "name": "TurnB",
@@ -15,7 +15,7 @@
   },
   "description": {
     "short": "Create TurnB case-study presentations from rough project content.",
-    "full": "Turn rough project content into structured TurnB case-study presentations through the existing AI-assisted presentation workflow. This pilot is delivered as a Microsoft Teams personal tab."
+    "full": "Turn rough project content into structured TurnB case-study presentations through the existing AI-assisted presentation workflow. This pilot is delivered as a Microsoft Teams personal tab plus a chat bot that accepts your source documents and returns the generated deck to your OneDrive."
   },
   "icons": {
     "outline": "outline.png",
@@ -30,6 +30,33 @@
       "websiteUrl": "https://turnb-ppt-agent.proudfield-52993ca6.eastus2.azurecontainerapps.io/",
       "scopes": [
         "personal"
+      ]
+    }
+  ],
+  "bots": [
+    {
+      "botId": "d105083e-3604-4898-8314-870562e63792",
+      "scopes": [
+        "personal"
+      ],
+      "supportsFiles": true,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "personal"
+          ],
+          "commands": [
+            {
+              "title": "help",
+              "description": "Show what I can do"
+            },
+            {
+              "title": "/clear",
+              "description": "Start a fresh session"
+            }
+          ]
+        }
       ]
     }
   ],

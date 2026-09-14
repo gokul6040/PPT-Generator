@@ -21,6 +21,11 @@ The content may already be a single merged narrative (including details the user
 - Do NOT heavily rewrite or paraphrase.
 - If the content is already well-written full prose, keep sentences intact — only split across the three section buckets.
 - Do NOT convert prose into bullet points unless the user already wrote it that way.
+- Preserve the source's narrative order inside each section: opening paragraph, bullets, subsection headings, supporting bullets, and closing paragraph.
+- Preserve Markdown-style subsection headings such as `**Identifying Stakeholder Needs & Gaps**` on their own line.
+- Preserve existing bullet boundaries and line breaks. Do not flatten grouped bullets into one paragraph.
+- Map a source heading such as `TurnB Approach`, `Our Approach`, or `Solution` to **Design and Implementation**, while retaining its named subsections inside the section content.
+- Map a source heading such as `Implications`, `Outcomes`, or `Results` to **Impact**.
 - Preserve thematic sub-labels written as `Label: explanation` on their own line — keep the label text and colon exactly as the user wrote it.
 - If information for a section is sparse, use only what is available and keep it short (do not pad or invent).
 - Details about data sources, tools, governance, impact numbers, etc. belong in the section where they naturally fit (usually Design and Implementation for technical details, Impact for results).

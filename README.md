@@ -11,6 +11,13 @@ A full-stack application that turns case-study material into branded PowerPoint 
 - Azure Blob Storage for templates, uploads, and generated decks
 - Single-container deployment with a same-origin gateway
 
+## How to use
+
+1. Start the app, then open `http://localhost:3000`.
+2. In the chat, describe the case study or upload the source material.
+3. Answer the agent's follow-up questions and review the proposed slide content.
+4. Generate the presentation, then download the finished PowerPoint from the chat.
+
 ## Prerequisites
 
 - Python 3.11
